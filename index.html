@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Expenses Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-2xl w-full bg-white shadow-2xl rounded-2xl p-6 space-y-6 transition-all duration-500">
+    <div class="flex justify-between items-center space-x-4">
+      <h1 class="text-2xl font-bold text-gray-800">💸 Expenses Calculator</h1>
+      <div class="space-x-4">
+        <label for="importFile" class="text-sm text-green-600 hover:underline cursor-pointer">📥 Import CSV</label>
+        <input type="file" id="importFile" accept=".csv" class="hidden" onchange="importFromCSV(event)" />
+        <button onclick="exportToCSV()" class="text-sm text-blue-600 hover:underline">📤 Export CSV</button>
+        <button onclick="clearAllExpenses()" class="text-sm text-red-600 hover:underline">🗑️ Clear All</button>
+      </div>
+    </div>
+
+    <!-- Add Expense Form -->
+    <div class="grid md:grid-cols-5 gap-4 text-base">
+      <input type="date" id="date" class="min-w-[130px] w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition col-span-1 mr-2" />
+
+     <input type="text" id="desc" placeholder="Description" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition col-span-2 ml-1" />
+
+      <input type="number" id="amount" placeholder="Amount" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition col-span-1" />
+      <select id="category" class="w-full p-2 border border-gray-300 rounded-md col-span-1" onchange="handleCategoryChange()">
+        <option value="Food">Food</option>
+        <option value="Travel">Travel</option>
+        <option value="Shopping">Shopping</option>
+        <option value="Bills">Bills</option>
+        <option value="Others">Others</option>
+        <option value="add_new">➕ Add New</option>
+      </select>
+      <input type="text" id="customCategory" placeholder="Enter new category" class="w-full p-2 border border-dashed border-blue-400 rounded-md col-span-1 hidden" />
+    </div>
+    <button onclick="addExpense()" class="w-full bg-blue-600 text-white font-semibold py-2 rounded-md hover:bg-blue-700 transition">Add Expense</button>
+
+    <!-- Table View -->
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm text-left">
+        <thead class="bg-gray-200 text-gray-600 uppercase text-xs">
+          <tr>
+            <th class="px-4 py-2">Date</th>
+            <th class="px-4 py-2">Description</th>
+            <th class="px-4 py-2">Amount (₹)</th>
+            <th class="px-4 py-2">Category</th>
+            <th class="px-4 py-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="expenseList" class="text-gray-700"></tbody>
+      </table>
+    </div>
+
+    <div class="bg-gray-100 p-4 rounded-lg flex justify-between items-center text-lg font-semibold">
+      <span>Total:</span>
+      <span id="total" class="text-green-600 transition-all duration-300">₹0</span>
+    </div>
+  </div>
+
+  <!-- Script placed at the end for safe DOM interaction -->
+  <script>
+  let total = 0;
+  let expenses = JSON.parse(localStorage.getItem('expensesData')) || [];
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date').value = today;
+    renderExpenses();
+  });
+
+  function handleCategoryChange() {
+    const categorySelect = document.getElementById('category');
+    const customInput = document.getElementById('customCategory');
+    if (categorySelect.value === 'add_new') {
+      customInput.classList.remove('hidden');
+      customInput.focus();
+    } else {
+      customInput.classList.add('hidden');
+    }
+  }
+
+  function renderExpenses() {
+    const list = document.getElementById('expenseList');
+    list.innerHTML = '';
+    total = 0;
+
+    expenses.forEach((e) => {
+      total += e.amount;
+      const row = document.createElement('tr');
+      if (e.editing) {
+        row.innerHTML = `
+          <td class="px-4 py-2 border-b"><input type="date" value="${e.date}" class="w-full border rounded px-2 py-1" id="edit-date-${e.id}" /></td>
+          <td class="px-4 py-2 border-b"><input type="text" value="${e.desc}" class="w-full border rounded px-2 py-1" id="edit-desc-${e.id}" /></td>
+          <td class="px-4 py-2 border-b"><input type="number" value="${e.amount}" class="w-full border rounded px-2 py-1" id="edit-amount-${e.id}" /></td>
+          <td class="px-4 py-2 border-b">${e.category}</td>
+          <td class="px-4 py-2 border-b">
+            <button onclick="saveEdit(${e.id})" class="text-green-600 hover:underline mr-2">✅ Save</button>
+            <button onclick="cancelEdit(${e.id})" class="text-gray-600 hover:underline">❌ Cancel</button>
+          </td>`;
+      } else {
+        row.innerHTML = `
+          <td class="px-4 py-2 border-b">${e.date}</td>
+          <td class="px-4 py-2 border-b">${e.desc}</td>
+          <td class="px-4 py-2 border-b text-blue-700 font-medium">₹${e.amount.toFixed(2)}</td>
+          <td class="px-4 py-2 border-b">${e.category}</td>
+          <td class="px-4 py-2 border-b">
+            <button onclick="editExpense(${e.id})" class="text-yellow-600 hover:underline mr-2">✏️ Edit</button>
+            <button onclick="deleteExpense(${e.id})" class="text-red-600 hover:underline">🗑️ Delete</button>
+          </td>`;
+      }
+      list.appendChild(row);
+    });
+
+    document.getElementById('total').textContent = `₹${total.toFixed(2)}`;
+  }
+
+  function addExpense() {
+    const date = document.getElementById('date').value;
+    const desc = document.getElementById('desc').value.trim();
+    const amount = parseFloat(document.getElementById('amount').value);
+    let category = document.getElementById('category').value;
+
+    if (category === 'add_new') {
+      category = document.getElementById('customCategory').value.trim();
+      if (category) {
+        const option = new Option(category, category);
+        document.getElementById('category').add(option, document.getElementById('category').options.length - 1);
+        document.getElementById('category').value = category;
+      } else {
+        alert('Please enter a custom category name.');
+        return;
+      }
+    }
+
+    if (!desc || isNaN(amount) || amount <= 0) {
+      alert('Please enter a valid description and amount');
+      return;
+    }
+
+    const id = Date.now();
+    expenses.push({ id, date, desc, amount, category });
+    document.getElementById('desc').value = '';
+    document.getElementById('amount').value = '';
+    document.getElementById('desc').focus();
+    renderExpenses();
+    localStorage.setItem('expensesData', JSON.stringify(expenses));
+  }
+
+  function editExpense(id) {
+    expenses = expenses.map(e => ({ ...e, editing: e.id === id }));
+    renderExpenses();
+  }
+
+  function saveEdit(id) {
+    const date = document.getElementById(`edit-date-${id}`).value;
+    const desc = document.getElementById(`edit-desc-${id}`).value.trim();
+    const amount = parseFloat(document.getElementById(`edit-amount-${id}`).value);
+    const category = expenses.find(e => e.id === id).category;
+    if (!desc || isNaN(amount) || amount <= 0) {
+      alert('Please enter valid details');
+      return;
+    }
+    expenses = expenses.map(e => e.id === id ? { ...e, date, desc, amount, category, editing: false } : e);
+    renderExpenses();
+    localStorage.setItem('expensesData', JSON.stringify(expenses));
+  }
+
+  function cancelEdit(id) {
+    expenses = expenses.map(e => e.id === id ? { ...e, editing: false } : e);
+    renderExpenses();
+  }
+
+  function deleteExpense(id) {
+    expenses = expenses.filter(e => e.id !== id);
+    renderExpenses();
+    localStorage.setItem('expensesData', JSON.stringify(expenses));
+  }
+
+  function clearAllExpenses() {
+    if (confirm('Are you sure you want to delete all expenses?')) {
+      expenses = [];
+      localStorage.removeItem('expensesData');
+      renderExpenses();
+    }
+  }
+
+  function importFromCSV(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const lines = e.target.result.trim().split('\n').slice(1);
+      const newExpenses = lines.map(line => {
+        const [date, desc, amount, category] = line.split(',');
+        return {
+          id: Date.now() + Math.random(),
+          date: date.trim(),
+          desc: desc.replace(/^"|"$/g, '').trim(),
+          amount: parseFloat(amount),
+          category: category.trim()
+        };
+      });
+      expenses = expenses.concat(newExpenses);
+      localStorage.setItem('expensesData', JSON.stringify(expenses));
+      renderExpenses();
+    };
+    reader.readAsText(file);
+  }
+
+  function exportToCSV() {
+    if (expenses.length === 0) return alert('No data to export');
+    let csv = 'Date,Description,Amount,Category\n';
+    expenses.forEach(e => {
+      csv += `${e.date},"${e.desc}",${e.amount},${e.category}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'expenses.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  </script>
+</body>
+</html>
