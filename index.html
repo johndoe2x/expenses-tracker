@@ -20,7 +20,7 @@
 
     <!-- Add Expense Form -->
     <div class="grid md:grid-cols-5 gap-4 text-base">
-      <input type="date" id="date" class="min-w-[130px] w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition col-span-1 mr-2" />
+     <input type="date" id="date" class="min-w-[130px] w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition col-span-1 mr-2" />
 
      <input type="text" id="desc" placeholder="Description" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition col-span-2 ml-1" />
 
@@ -35,6 +35,7 @@
       </select>
       <input type="text" id="customCategory" placeholder="Enter new category" class="w-full p-2 border border-dashed border-blue-400 rounded-md col-span-1 hidden" />
     </div>
+
     <button onclick="addExpense()" class="w-full bg-blue-600 text-white font-semibold py-2 rounded-md hover:bg-blue-700 transition">Add Expense</button>
 
     <!-- Table View -->
@@ -42,10 +43,10 @@
       <table class="min-w-full text-sm text-left">
         <thead class="bg-gray-200 text-gray-600 uppercase text-xs">
           <tr>
-            <th class="px-4 py-2">Date</th>
-            <th class="px-4 py-2">Description</th>
-            <th class="px-4 py-2">Amount (₹)</th>
-            <th class="px-4 py-2">Category</th>
+            <th class="px-4 py-2 cursor-pointer" onclick="sortBy('date')">Date <span id="sort-date"></span></th>
+            <th class="px-4 py-2 cursor-pointer" onclick="sortBy('desc')">Description <span id="sort-desc"></span></th>
+            <th class="px-4 py-2 cursor-pointer" onclick="sortBy('amount')">Amount (₹) <span id="sort-amount"></span></th>
+            <th class="px-4 py-2 cursor-pointer" onclick="sortBy('category')">Category <span id="sort-category"></span></th>
             <th class="px-4 py-2">Actions</th>
           </tr>
         </thead>
@@ -59,10 +60,11 @@
     </div>
   </div>
 
-  <!-- Script placed at the end for safe DOM interaction -->
+  <!-- Script -->
   <script>
   let total = 0;
   let expenses = JSON.parse(localStorage.getItem('expensesData')) || [];
+  let currentSort = { key: '', asc: true };
 
   document.addEventListener('DOMContentLoaded', () => {
     const today = new Date().toISOString().split('T')[0];
@@ -81,41 +83,6 @@
     }
   }
 
-  function renderExpenses() {
-    const list = document.getElementById('expenseList');
-    list.innerHTML = '';
-    total = 0;
-
-    expenses.forEach((e) => {
-      total += e.amount;
-      const row = document.createElement('tr');
-      if (e.editing) {
-        row.innerHTML = `
-          <td class="px-4 py-2 border-b"><input type="date" value="${e.date}" class="w-full border rounded px-2 py-1" id="edit-date-${e.id}" /></td>
-          <td class="px-4 py-2 border-b"><input type="text" value="${e.desc}" class="w-full border rounded px-2 py-1" id="edit-desc-${e.id}" /></td>
-          <td class="px-4 py-2 border-b"><input type="number" value="${e.amount}" class="w-full border rounded px-2 py-1" id="edit-amount-${e.id}" /></td>
-          <td class="px-4 py-2 border-b">${e.category}</td>
-          <td class="px-4 py-2 border-b">
-            <button onclick="saveEdit(${e.id})" class="text-green-600 hover:underline mr-2">✅ Save</button>
-            <button onclick="cancelEdit(${e.id})" class="text-gray-600 hover:underline">❌ Cancel</button>
-          </td>`;
-      } else {
-        row.innerHTML = `
-          <td class="px-4 py-2 border-b">${e.date}</td>
-          <td class="px-4 py-2 border-b">${e.desc}</td>
-          <td class="px-4 py-2 border-b text-blue-700 font-medium">₹${e.amount.toFixed(2)}</td>
-          <td class="px-4 py-2 border-b">${e.category}</td>
-          <td class="px-4 py-2 border-b">
-            <button onclick="editExpense(${e.id})" class="text-yellow-600 hover:underline mr-2">✏️ Edit</button>
-            <button onclick="deleteExpense(${e.id})" class="text-red-600 hover:underline">🗑️ Delete</button>
-          </td>`;
-      }
-      list.appendChild(row);
-    });
-
-    document.getElementById('total').textContent = `₹${total.toFixed(2)}`;
-  }
-
   function addExpense() {
     const date = document.getElementById('date').value;
     const desc = document.getElementById('desc').value.trim();
@@ -128,6 +95,8 @@
         const option = new Option(category, category);
         document.getElementById('category').add(option, document.getElementById('category').options.length - 1);
         document.getElementById('category').value = category;
+        document.getElementById('customCategory').value = '';
+        document.getElementById('customCategory').classList.add('hidden');
       } else {
         alert('Please enter a custom category name.');
         return;
@@ -143,33 +112,30 @@
     expenses.push({ id, date, desc, amount, category });
     document.getElementById('desc').value = '';
     document.getElementById('amount').value = '';
-    document.getElementById('desc').focus();
     renderExpenses();
     localStorage.setItem('expensesData', JSON.stringify(expenses));
   }
 
-  function editExpense(id) {
-    expenses = expenses.map(e => ({ ...e, editing: e.id === id }));
-    renderExpenses();
-  }
+  function renderExpenses() {
+    const list = document.getElementById('expenseList');
+    list.innerHTML = '';
+    total = 0;
 
-  function saveEdit(id) {
-    const date = document.getElementById(`edit-date-${id}`).value;
-    const desc = document.getElementById(`edit-desc-${id}`).value.trim();
-    const amount = parseFloat(document.getElementById(`edit-amount-${id}`).value);
-    const category = expenses.find(e => e.id === id).category;
-    if (!desc || isNaN(amount) || amount <= 0) {
-      alert('Please enter valid details');
-      return;
-    }
-    expenses = expenses.map(e => e.id === id ? { ...e, date, desc, amount, category, editing: false } : e);
-    renderExpenses();
-    localStorage.setItem('expensesData', JSON.stringify(expenses));
-  }
+    expenses.forEach((e) => {
+      total += e.amount;
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td class="px-4 py-2 border-b">${e.date}</td>
+        <td class="px-4 py-2 border-b">${e.desc}</td>
+        <td class="px-4 py-2 border-b text-blue-700 font-medium">₹${e.amount.toFixed(2)}</td>
+        <td class="px-4 py-2 border-b">${e.category}</td>
+        <td class="px-4 py-2 border-b">
+          <button onclick="deleteExpense(${e.id})" class="text-red-600 hover:underline">🗑️ Delete</button>
+        </td>`;
+      list.appendChild(row);
+    });
 
-  function cancelEdit(id) {
-    expenses = expenses.map(e => e.id === id ? { ...e, editing: false } : e);
-    renderExpenses();
+    document.getElementById('total').textContent = `₹${total.toFixed(2)}`;
   }
 
   function deleteExpense(id) {
@@ -225,6 +191,32 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function sortBy(key) {
+    if (currentSort.key === key) currentSort.asc = !currentSort.asc;
+    else currentSort = { key, asc: true };
+
+    expenses.sort((a, b) => {
+      if (key === 'amount') return currentSort.asc ? a.amount - b.amount : b.amount - a.amount;
+      const valA = a[key].toString().toLowerCase();
+      const valB = b[key].toString().toLowerCase();
+      return currentSort.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    });
+
+    updateSortIndicators();
+    renderExpenses();
+  }
+
+  function updateSortIndicators() {
+    ['date', 'desc', 'amount', 'category'].forEach(key => {
+      const el = document.getElementById('sort-' + key);
+      if (key === currentSort.key) {
+        el.textContent = currentSort.asc ? '▲' : '▼';
+      } else {
+        el.textContent = '';
+      }
+    });
   }
   </script>
 </body>
